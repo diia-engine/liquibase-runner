@@ -1,1 +1,1 @@
-# liquibase-processor
+# liquibase-runner
