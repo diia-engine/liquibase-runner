@@ -31,7 +31,10 @@ public class FilesTools {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
         Properties config = context.get(Properties.class);
         initDirectories();
-        String sourceMainLiquibase = Config.getStringProperty(config, "source_main_liquibase");
+        Path sourceMainLiquibase = Paths.get(Config.getStringProperty(config, "source_main_liquibase"));
+        if (!Files.exists(sourceMainLiquibase)) {
+            throw new FileNotFoundException(sourceMainLiquibase.toString());
+        }
         copyDirectoryRecursively(sourceMainLiquibase);
         mainLiquibase = Paths.get(DATA_MODEL, MAIN_LIQUIBASE).toFile();
         if (!mainLiquibase.exists()) throw new FileNotFoundException(mainLiquibase.getAbsolutePath());
@@ -51,17 +54,16 @@ public class FilesTools {
         }
     }
 
-    private void copyDirectoryRecursively(String sourceMainLiquibase) throws IOException {
-        File src = new File(sourceMainLiquibase);
-        if (src.isDirectory() || !src.exists() || !src.getName().contains(MAIN_LIQUIBASE)) {
-            logger.warn("Source file must be '{}'! {}", MAIN_LIQUIBASE, src.getAbsolutePath());
+    private void copyDirectoryRecursively(Path path) throws IOException {
+        if (Files.isDirectory(path) || !Files.exists(path) || !path.toString().contains(MAIN_LIQUIBASE)) {
+            logger.warn("Source file must be '{}'! {}", MAIN_LIQUIBASE, path);
             return;
         }
 
-        logger.info("main-liquibase.xml found: {}", src.getAbsolutePath());
+        logger.info("main-liquibase.xml found: {}", path);
         logger.info("Copy files for processing...");
 
-        Path sourceDir = Paths.get(src.getParent());
+        Path sourceDir = path.getParent();
         Path targetDir = Paths.get(DATA_MODEL);
         Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
             @Override
