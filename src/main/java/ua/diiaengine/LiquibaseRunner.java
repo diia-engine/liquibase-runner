@@ -38,19 +38,27 @@ public class LiquibaseRunner {
         filesTools.readFilesRecursively(sqlDir, fileList);
     }
 
-    public void process() throws LiquibaseException {
-        DBTools.executeSQLScriptByLines(fileList.get("0_init_server.sql"));
-        DBTools.executeSQLScriptFull(fileList.get("1_init_new_db.sql"));
-        DBTools.executeSQLScriptFull(fileList.get("2_init_service_tables.sql"));
-        filesTools.updateSchemaLocationInXMLFiles();
-        logger.info("Starting Liquibase ...");
-        runLiquibase();
+    public void process(Runnable runnable) {
+        Thread thread = new Thread(() -> {
+            DBTools.executeSQLScriptByLines(fileList.get("0_init_server.sql"));
+            DBTools.executeSQLScriptFull(fileList.get("1_init_new_db.sql"));
+            DBTools.executeSQLScriptFull(fileList.get("2_init_service_tables.sql"));
+            filesTools.updateSchemaLocationInXMLFiles();
+            logger.info("Starting Liquibase ...");
+            try {
+                runLiquibase();
+                runnable.run();
+            } catch (DatabaseException e) {
+                logger.error(e.getMessage(), e);
+            }
+        });
+        thread.start();
     }
 
     public void runLiquibase() throws DatabaseException {
         Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(DBTools.getConnection()));
         FileSystemResourceAccessor fileSystemResourceAccessor = new FileSystemResourceAccessor(FilesTools.DATA_MODEL);
-        try (Liquibase liquibase = new Liquibase(filesTools.getMainLiquibase().getPath(), fileSystemResourceAccessor, db)) {
+        try (Liquibase liquibase = new Liquibase(filesTools.getMainLiquibase().toString(), fileSystemResourceAccessor, db)) {
             liquibase.update("pub");
         } catch (LiquibaseException e) {
             logger.error(e.getMessage());

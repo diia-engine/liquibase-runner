@@ -5,6 +5,11 @@
             <pattern>%d{dd-MM-YYYY HH:mm:ss.SSS} [%thread] %X{symbol} %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+    <appender name="TEXT_AREA" class="ua.diiaengine.utils.TextAreaAppender">
+        <encoder>
+            <pattern>%d{dd-MM-YYYY HH:mm:ss.SSS} [%thread] %X{symbol} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <File>logs/liquibase-processor.log</File>
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
@@ -24,10 +29,12 @@
     <root level="INFO" additivity="false">
         <appender-ref ref="FILE" />
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="TEXT_AREA"/>
     </root>
 
     <logger name="ua.diiaengine" level="DEBUG" additivity="false">
         <appender-ref ref="FILE" />
         <appender-ref ref="STDOUT"/>
+        <appender-ref ref="TEXT_AREA"/>
     </logger>
 </configuration>

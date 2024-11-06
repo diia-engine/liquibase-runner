@@ -11,41 +11,35 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Slf4j
-@Setter
 public class FilesTools {
+    @Setter
     private AppContext context;
     public static final String DATA_MODEL = "data-model";
     public static final String MAIN_LIQUIBASE = "main-liquibase.xml";
     public static final String SQL_DIR = "sql";
 
     @Getter
-    private File mainLiquibase;
+    private Path mainLiquibase;
+    @Getter @Setter
+    private File targetMainLiquibase;
 
     public void init() throws IOException {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
-        Properties config = context.get(Properties.class);
         initDirectories();
-        Path sourceMainLiquibase = Paths.get(Config.getStringProperty(config, "source_main_liquibase"));
-        if (!Files.exists(sourceMainLiquibase)) {
-            throw new FileNotFoundException(sourceMainLiquibase.toString());
-        }
-        copyDirectoryRecursively(sourceMainLiquibase);
-        mainLiquibase = Paths.get(DATA_MODEL, MAIN_LIQUIBASE).toFile();
-        if (!mainLiquibase.exists()) throw new FileNotFoundException(mainLiquibase.getAbsolutePath());
     }
 
     private void initDirectories() {
-        createDirectoryIfNotExists(Paths.get(DATA_MODEL));
-        deleteAllFilesInDirectory(Paths.get(DATA_MODEL));
+        createDirectoryIfNotExists();
+        deleteAllFilesInDirectory();
     }
 
-    private void createDirectoryIfNotExists(Path path) {
+    private void createDirectoryIfNotExists() {
+        Path path = Paths.get(DATA_MODEL);
         try {
             Files.createDirectories(path);
             logger.info("Directory has been found: {}", path.toAbsolutePath());
@@ -54,7 +48,8 @@ public class FilesTools {
         }
     }
 
-    private void copyDirectoryRecursively(Path path) throws IOException {
+    public void copyDirectoryRecursively() {
+        Path path = targetMainLiquibase.toPath();
         if (Files.isDirectory(path) || !Files.exists(path) || !path.toString().contains(MAIN_LIQUIBASE)) {
             logger.warn("Source file must be '{}'! {}", MAIN_LIQUIBASE, path);
             return;
@@ -65,25 +60,32 @@ public class FilesTools {
 
         Path sourceDir = path.getParent();
         Path targetDir = Paths.get(DATA_MODEL);
-        Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Path targetPath = targetDir.resolve(sourceDir.relativize(file));
-                Files.copy(file, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
-            }
+        try {
+            Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Path targetPath = targetDir.resolve(sourceDir.relativize(file));
+                    Files.copy(file, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    return FileVisitResult.CONTINUE;
+                }
 
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Path targetPath = targetDir.resolve(sourceDir.relativize(dir));
-                Files.createDirectories(targetPath);
-                return FileVisitResult.CONTINUE;
-            }
-        });
-        logger.info("Copy files finished.");
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Path targetPath = targetDir.resolve(sourceDir.relativize(dir));
+                    Files.createDirectories(targetPath);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            mainLiquibase = Paths.get(DATA_MODEL, MAIN_LIQUIBASE);
+            if (!Files.exists(mainLiquibase)) throw new FileNotFoundException(mainLiquibase.toString());
+            logger.info("Copy files finished.");
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+        }
     }
 
-    public void deleteAllFilesInDirectory(Path path) {
+    public void deleteAllFilesInDirectory() {
+        Path path = Paths.get(DATA_MODEL);
         File directory = path.toFile();
         deleteAllFilesInDirectory(directory);
     }
