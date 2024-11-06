@@ -5,7 +5,9 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
 import ua.diiaengine.utils.DBTools;
 import ua.diiaengine.utils.FilesTools;
 
-import java.io.FileReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Properties;
 
 @Slf4j
@@ -17,7 +19,12 @@ public class Launcher {
 
         if (args.length == 0) throw new IllegalArgumentException("No config provided");
         Properties config = new Properties();
-        config.load(new FileReader(args[0]));
+        List<String> lines = Files.readAllLines(Paths.get(args[0]));
+        for (String line : lines) {
+            String key = line.substring(0, line.indexOf('='));
+            String value = line.substring(line.indexOf('=') + 1);
+            config.put(key, value);
+        }
 
         AppContext context = new AppContext();
         context.add(config);
