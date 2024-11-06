@@ -1,0 +1,44 @@
+.text-area {
+    -fx-control-inner-background: #1e1f22;
+    -fx-text-fill: #cdcfd5;
+    -fx-opacity: 1.0;
+}
+
+.button {
+    -fx-background-color: #4CAF50; /* Зеленый цвет фона */
+    -fx-text-fill: white; /* Белый цвет текста */
+    -fx-font-size: 16px; /* Размер шрифта */
+    -fx-font-weight: bold; /* Жирный шрифт */
+    -fx-padding: 10px 20px; /* Отступы внутри кнопки */
+    -fx-background-radius: 5px; /* Закругленные углы */
+    -fx-border-radius: 5px; /* Закругление границ */
+    -fx-border-width: 2px; /* Толщина границы */
+    -fx-border-color: #4CAF50; /* Цвет границы */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0.0, 2, 2); /* Легкая тень */
+}
+
+.button:hover {
+    -fx-background-color: #45a049; /* Немного темнее зеленый */
+    -fx-border-color: #45a049; /* Цвет границы меняется на более темный */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 6, 0.0, 2, 2); /* Тень при наведении */
+}
+
+.button:pressed {
+    -fx-background-color: #388e3c; /* Еще более темный зеленый */
+    -fx-border-color: #388e3c; /* Цвет границы меняется на темно-зеленый */
+}
+
+.button:disabled {
+    -fx-background-color: #e0e0e0; /* Светло-серый фон */
+    -fx-border-color: #b0b0b0; /* Светло-серая граница */
+    -fx-text-fill: #a0a0a0; /* Серый текст */
+}
+
+.label-h3 {
+    -fx-font-size: 20px; /* Размер шрифта, как для h3 */
+    -fx-font-weight: bold; /* Жирный шрифт */
+    -fx-text-fill: #333333; /* Темный цвет текста */
+    -fx-padding: 5px 0; /* Немного отступов сверху и снизу */
+    -fx-background-color: transparent; /* Прозрачный фон */
+    -fx-alignment: center-left; /* Выравнивание по левому краю */
+}
