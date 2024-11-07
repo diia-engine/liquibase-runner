@@ -11,6 +11,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import ua.diiaengine.AppContext;
 import ua.diiaengine.LiquibaseRunner;
+import ua.diiaengine.utils.DBTools;
 import ua.diiaengine.utils.FilesTools;
 import ua.diiaengine.utils.TextAreaAppender;
 
@@ -24,6 +25,7 @@ public class MainFormController implements Initializable {
     private Stage stage;
     private AppContext context;
     private FilesTools filesTools;
+    private DBTools dbTools;
 
     @FXML
     private Button chooseFileButton;
@@ -38,6 +40,7 @@ public class MainFormController implements Initializable {
     public void initialize(URL url, ResourceBundle resourceBundle) {
         context = AppContext.getInstance();
         filesTools = context.get(FilesTools.class);
+        dbTools = context.get(DBTools.class);
         TextAreaAppender.setLogArea(logArea);
         logArea.setEditable(false);
         logArea.setFocusTraversable(false);
@@ -47,14 +50,15 @@ public class MainFormController implements Initializable {
     }
 
     private void onProcess() {
+        dbTools.initWorkerPool();
         chooseFileButton.setDisable(true);
         processButton.setDisable(true);
         clearButton.setDisable(true);
         LiquibaseRunner liquibaseRunner = context.get(LiquibaseRunner.class);
         liquibaseRunner.process(() -> {
             chooseFileButton.setDisable(false);
-            processButton.setDisable(false);
             clearButton.setDisable(false);
+            dbTools.stopWorkerPool();
         });
     }
 
@@ -78,5 +82,7 @@ public class MainFormController implements Initializable {
         logArea.clear();
         processButton.setDisable(true);
         filesTools.deleteAllFilesInDirectory();
+        dbTools.stopWorkerPool();
+        dbTools.recreateDatabase();
     }
 }
