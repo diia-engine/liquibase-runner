@@ -3,12 +3,12 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
-
 
 <VBox prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/8.0.201" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ua.diiaengine.controllers.MainFormController">
    <children>
@@ -35,6 +35,11 @@
             <Insets bottom="20.0" />
          </VBox.margin>
       </GridPane>
+      <ProgressBar fx:id="progressBar" maxWidth="1.7976931348623157E308" prefWidth="200.0" progress="0.0" visible="false">
+         <VBox.margin>
+            <Insets bottom="10.0" />
+         </VBox.margin>
+      </ProgressBar>
       <TextArea fx:id="logArea" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" styleClass="text-area" stylesheets="@styles.css" VBox.vgrow="ALWAYS" />
    </children>
    <padding>

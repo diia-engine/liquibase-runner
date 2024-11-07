@@ -1,6 +1,7 @@
 package ua.diiaengine;
 
 import liquibase.Liquibase;
+import liquibase.changelog.ChangeSet;
 import liquibase.database.Database;
 import liquibase.database.DatabaseFactory;
 import liquibase.database.jvm.JdbcConnection;
@@ -15,7 +16,9 @@ import ua.diiaengine.utils.FilesTools;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Slf4j
 public class LiquibaseRunner {
@@ -38,7 +41,7 @@ public class LiquibaseRunner {
         filesTools.readFilesRecursively(sqlDir, fileList);
     }
 
-    public void process(Runnable runnable) {
+    public void process(Runnable runnable, Consumer<Integer> consumer) {
         Thread thread = new Thread(() -> {
             DBTools.executeSQLScriptByLines(fileList.get("0_init_server.sql"));
             DBTools.executeSQLScriptFull(fileList.get("1_init_new_db.sql"));
@@ -46,7 +49,7 @@ public class LiquibaseRunner {
             filesTools.updateSchemaLocationInXMLFiles();
             logger.info("Starting Liquibase ...");
             try {
-                runLiquibase();
+                runLiquibase(consumer);
                 runnable.run();
             } catch (DatabaseException e) {
                 logger.error(e.getMessage(), e);
@@ -55,10 +58,12 @@ public class LiquibaseRunner {
         thread.start();
     }
 
-    public void runLiquibase() throws DatabaseException {
+    public void runLiquibase(Consumer<Integer> consumer) throws DatabaseException {
         Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(DBTools.getWorkerConnection()));
         FileSystemResourceAccessor fileSystemResourceAccessor = new FileSystemResourceAccessor(FilesTools.DATA_MODEL);
         try (Liquibase liquibase = new Liquibase(filesTools.getMainLiquibase().toString(), fileSystemResourceAccessor, db)) {
+            List<ChangeSet> changeSets = liquibase.getDatabaseChangeLog().getChangeSets();
+            consumer.accept(changeSets.size());
             liquibase.update("pub");
         } catch (LiquibaseException e) {
             logger.error(e.getMessage());

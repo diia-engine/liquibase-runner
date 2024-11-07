@@ -4,6 +4,7 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Button;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -18,6 +19,8 @@ import ua.diiaengine.utils.TextAreaAppender;
 import java.io.File;
 import java.net.URL;
 import java.util.ResourceBundle;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 @Slf4j
 public class MainFormController implements Initializable {
@@ -35,6 +38,8 @@ public class MainFormController implements Initializable {
     private Button clearButton;
     @FXML
     private TextArea logArea;
+    @FXML
+    private ProgressBar progressBar = new ProgressBar(0);
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -49,19 +54,6 @@ public class MainFormController implements Initializable {
         clearButton.setOnAction(e -> onClear());
     }
 
-    private void onProcess() {
-        dbTools.initWorkerPool();
-        chooseFileButton.setDisable(true);
-        processButton.setDisable(true);
-        clearButton.setDisable(true);
-        LiquibaseRunner liquibaseRunner = context.get(LiquibaseRunner.class);
-        liquibaseRunner.process(() -> {
-            chooseFileButton.setDisable(false);
-            clearButton.setDisable(false);
-            dbTools.stopWorkerPool();
-        });
-    }
-
     private void onChooseFile() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Обрати main-liquibase.xml");
@@ -71,11 +63,32 @@ public class MainFormController implements Initializable {
         );
         File mainLiquibase = fileChooser.showOpenDialog(stage);
         if (mainLiquibase != null) {
+            processButton.setDisable(false);
+            dbTools.recreateDatabase();
             filesTools.setTargetMainLiquibase(mainLiquibase);
             filesTools.copyDirectoryRecursively();
             logger.info(mainLiquibase.getAbsolutePath());
-            processButton.setDisable(false);
         }
+    }
+
+    private void onProcess() {
+        dbTools.initWorkerPool();
+        chooseFileButton.setDisable(true);
+        processButton.setDisable(true);
+        clearButton.setDisable(true);
+        LiquibaseRunner liquibaseRunner = context.get(LiquibaseRunner.class);
+
+        AtomicInteger counter = new AtomicInteger(0);
+        Consumer<Integer> consumer = counter::set;
+        liquibaseRunner.process(() -> {
+            chooseFileButton.setDisable(false);
+            clearButton.setDisable(false);
+            progressBar.setVisible(false);
+            dbTools.stopWorkerPool();
+        }, consumer);
+        LiquibaseTask task = new LiquibaseTask(counter.get());
+        progressBar.setVisible(true);
+        progressBar.progressProperty().bind(task.progressProperty());
     }
 
     private void onClear() {
