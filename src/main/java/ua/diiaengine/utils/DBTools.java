@@ -33,7 +33,6 @@ public class DBTools {
         password = Config.getStringProperty(config, "database.password");
 
         initMasterPool();
-        recreateDatabase();
     }
 
     public void recreateDatabase() {
@@ -55,15 +54,6 @@ public class DBTools {
         workerPool.init();
     }
 
-    public Connection getMasterConnection() {
-        try {
-            return masterPool.getConnection();
-        } catch (SQLException e) {
-            logger.error("Unable to get connection. Cause: {}", e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
-
     public Connection getWorkerConnection() {
         try {
             return workerPool.getConnection();
@@ -74,11 +64,15 @@ public class DBTools {
     }
 
     public void stopWorkerPool() {
-        workerPool.shutdown();
+        if (workerPool != null) {
+            workerPool.shutdown();
+        }
     }
 
     public void stopMasterPool() {
-        masterPool.shutdown();
+        if (masterPool != null) {
+            masterPool.shutdown();
+        }
     }
 
     private void dropDatabase() {
