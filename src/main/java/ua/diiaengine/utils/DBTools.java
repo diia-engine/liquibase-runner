@@ -7,7 +7,6 @@ import ua.diiaengine.AppContext;
 
 import java.io.*;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -16,13 +15,15 @@ import java.util.Properties;
 public class DBTools {
     @Setter
     private AppContext context;
-    private HikariCpPool pool;
+    private HikariCpPool workerPool;
+    private HikariCpPool masterPool;
     @Getter
     private String databaseName;
     @Getter
     private String username;
     @Getter
     private String password;
+    private String workerDsn;
 
     public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
@@ -31,23 +32,58 @@ public class DBTools {
         username = Config.getStringProperty(config, "database.username");
         password = Config.getStringProperty(config, "database.password");
 
-        dropDatabase();
-        createDatabase();
-
-        pool = new HikariCpPool();
-        pool.setContext(context);
-        pool.init();
+        initMasterPool();
+        recreateDatabase();
     }
 
-    public void shutdown() {
-        pool.shutdown();
+    public void recreateDatabase() {
+        dropDatabase();
+        createDatabase();
+    }
+
+    private void initMasterPool() {
+        masterPool = new HikariCpPool();
+        masterPool.setContext(context);
+        masterPool.setDsn("jdbc:postgresql://localhost:5432/postgres");
+        masterPool.init();
+    }
+
+    public void initWorkerPool() {
+        workerPool = new HikariCpPool();
+        workerPool.setContext(context);
+        workerPool.setDsn(workerDsn);
+        workerPool.init();
+    }
+
+    public Connection getMasterConnection() {
+        try {
+            return masterPool.getConnection();
+        } catch (SQLException e) {
+            logger.error("Unable to get connection. Cause: {}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Connection getWorkerConnection() {
+        try {
+            return workerPool.getConnection();
+        } catch (SQLException e) {
+            logger.error("Unable to get connection. Cause: {}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void stopWorkerPool() {
+        workerPool.shutdown();
+    }
+
+    public void stopMasterPool() {
+        masterPool.shutdown();
     }
 
     private void dropDatabase() {
-        String systemDb = "jdbc:postgresql://localhost:5432/postgres";
         String dropDbQuery = "DROP DATABASE " + databaseName;
-
-        try (Connection connection = DriverManager.getConnection(systemDb, username, password);
+        try (Connection connection = masterPool.getConnection();
              Statement statement = connection.createStatement()) {
             statement.executeUpdate(dropDbQuery);
             logger.info("Database {} has been deleted.", databaseName);
@@ -59,10 +95,8 @@ public class DBTools {
     }
 
     private void createDatabase() {
-        String systemDb = "jdbc:postgresql://localhost:5432/postgres";
         String createDbQuery = "CREATE DATABASE " + databaseName;
-
-        try (Connection connection = DriverManager.getConnection(systemDb, username, password);
+        try (Connection connection = masterPool.getConnection();
              Statement statement = connection.createStatement()) {
             statement.executeUpdate(createDbQuery);
             logger.info("Database {} has been created.", databaseName);
@@ -73,8 +107,7 @@ public class DBTools {
                 logger.error("Error creating database: {}", e.getMessage());
             }
         } finally {
-            String dsn = "jdbc:postgresql://localhost:5432/" + databaseName + "?currentSchema=registry";
-            context.get(Properties.class).put("database.dsn", dsn);
+            workerDsn = "jdbc:postgresql://localhost:5432/" + databaseName + "?currentSchema=registry";
         }
     }
 
@@ -117,7 +150,7 @@ public class DBTools {
     }
 
     private void executeSQLScript(String sql, String fileName) {
-        try (Statement statement = pool.getConnection().createStatement()) {
+        try (Statement statement = workerPool.getConnection().createStatement()) {
             if (!sql.isEmpty()) {
                 statement.execute(sql);
                 logger.info("Script {} successfully executed", fileName);
@@ -128,15 +161,6 @@ public class DBTools {
             } else {
                 logger.error("Error executing SQL script: {}", e.getMessage());
             }
-        }
-    }
-
-    public Connection getConnection() {
-        try {
-            return pool.getConnection();
-        } catch (SQLException e) {
-            logger.error("Unable to get connection. Cause: {}", e.getMessage());
-            throw new RuntimeException(e);
         }
     }
 }

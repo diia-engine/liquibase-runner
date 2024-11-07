@@ -52,7 +52,10 @@ public class Launcher extends Application {
         liquibaseRunner.init();
         context.add(liquibaseRunner);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(DBTools::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            DBTools.stopWorkerPool();
+            DBTools.stopMasterPool();
+        }));
 
         new MainFormController().setStage(stage);
 

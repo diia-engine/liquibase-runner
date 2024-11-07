@@ -56,7 +56,7 @@ public class LiquibaseRunner {
     }
 
     public void runLiquibase() throws DatabaseException {
-        Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(DBTools.getConnection()));
+        Database db = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(DBTools.getWorkerConnection()));
         FileSystemResourceAccessor fileSystemResourceAccessor = new FileSystemResourceAccessor(FilesTools.DATA_MODEL);
         try (Liquibase liquibase = new Liquibase(filesTools.getMainLiquibase().toString(), fileSystemResourceAccessor, db)) {
             liquibase.update("pub");
