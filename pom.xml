@@ -77,33 +77,6 @@
                             <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
-                    <execution>
-                        <id>copy-system-dependencies</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <silent>true</silent>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>com.epam.digital.data.platform.liquibase</groupId>
-                                    <artifactId>extension</artifactId>
-                                    <version>1.9.4.4</version>
-                                    <type>jar</type>
-                                    <scope>system</scope>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.liquibase</groupId>
-                                    <artifactId>liquibase-core</artifactId>
-                                    <version>4.5.0</version>
-                                    <type>jar</type>
-                                    <scope>system</scope>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
                 </executions>
             </plugin>
         </plugins>
