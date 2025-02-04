@@ -119,20 +119,6 @@
             <artifactId>HikariCP</artifactId>
             <version>4.0.3</version>
         </dependency>
-        <dependency>
-            <groupId>com.epam.digital.data.platform.liquibase</groupId>
-            <artifactId>extension</artifactId>
-            <version>1.9.7.4</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/liquibase/liquibase-ddm-ext-1.9.7.4.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>org.liquibase</groupId>
-            <artifactId>liquibase-core</artifactId>
-            <version>4.5.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/liquibase/liquibase-4.5.0.jar</systemPath>
-        </dependency>
 
         <!-- UI -->
         <dependency>
