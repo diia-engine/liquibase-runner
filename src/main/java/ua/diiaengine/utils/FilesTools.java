@@ -21,21 +21,24 @@ public class FilesTools {
     private AppContext context;
     public static final String DATA_MODEL = "data-model";
     public static final String MAIN_LIQUIBASE = "main-liquibase.xml";
-    public static final String SQL_DIR = "sql";
+
+    private String xsdSchemaExt;
+    private String xsdSchema;
 
     @Getter
     private Path mainLiquibase;
     @Getter @Setter
     private File targetMainLiquibase;
 
-    public void init() throws IOException {
+    public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
         initDirectories();
+        xsdSchemaExt = context.getConfigStringProperty("xsd.schema-ext");
+        xsdSchema = context.getConfigStringProperty("xsd.schema");
     }
 
     private void initDirectories() {
         createDirectoryIfNotExists();
-        deleteAllFilesInDirectory();
     }
 
     private void createDirectoryIfNotExists() {
@@ -147,13 +150,13 @@ public class FilesTools {
                     Matcher matcher2 = pattern2.matcher(line);
                     Matcher matcher3 = pattern3.matcher(line);
                     if (matcher1.find()) {
-                        line = line.replaceAll(regex1, " liquibase/dbchangelog-4.5.xsd");
+                        line = line.replaceAll(regex1, " " + xsdSchema);
                     }
                     if (matcher2.find()) {
-                        line = line.replaceAll(regex2, " liquibase/dbchangelog-ddm.xsd");
+                        line = line.replaceAll(regex2, " " + xsdSchemaExt);
                     }
                     if (matcher3.find()) {
-                        line = line.replaceAll(regex3, " liquibase/dbchangelog-ddm.xsd");
+                        line = line.replaceAll(regex3, " " + xsdSchemaExt);
                     }
                     fileContent.append(line).append(System.lineSeparator());
                 }
@@ -165,5 +168,57 @@ public class FilesTools {
         } catch (IOException e) {
             logger.error("Error during processing file {}: {}", file, e.getMessage());
         }
+    }
+
+    public void copyDataLoad() {
+        String systemTempDir = System.getProperty("os.name").toLowerCase().contains("win") ?
+                System.getenv("TEMP") : "/tmp";
+        Path sourceDir = Paths.get(DATA_MODEL, "data-load");
+        Path targetDir = Paths.get(systemTempDir, "data-load");
+        try {
+            if (Files.exists(sourceDir) && Files.isDirectory(sourceDir)) {
+                logger.info("Source dir found: {}", sourceDir.toAbsolutePath());
+                if (Files.exists(targetDir)) {
+                    deleteDirectory(targetDir);
+                    logger.info("Old copy has been deleted: {}", targetDir.toAbsolutePath());
+                }
+                copyDirectory(sourceDir, targetDir);
+                logger.info("Target dir has been copied to {}", targetDir.toAbsolutePath());
+            }
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
+
+    private void copyDirectory(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Files.createDirectories(target.resolve(source.relativize(dir)));
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private void deleteDirectory(Path directory) throws IOException {
+        Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

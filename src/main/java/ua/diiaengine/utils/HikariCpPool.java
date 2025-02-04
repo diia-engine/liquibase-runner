@@ -8,7 +8,6 @@ import ua.diiaengine.AppContext;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Properties;
 
 public class HikariCpPool {
     @Setter
@@ -20,11 +19,10 @@ public class HikariCpPool {
 
     public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
-        Properties config = context.get(Properties.class);
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(dsn);
-        hikariConfig.setUsername(Config.getStringProperty(config, "database.username"));
-        hikariConfig.setPassword(Config.getStringProperty(config, "database.password"));
+        hikariConfig.setUsername(context.getConfigStringProperty("database.username"));
+        hikariConfig.setPassword(context.getConfigStringProperty("database.password"));
         pool = new HikariDataSource(hikariConfig);
     }
 

@@ -5,24 +5,20 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.configuration2.FileBasedConfiguration;
+import org.apache.commons.configuration2.PropertiesConfiguration;
+import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 import ua.diiaengine.controllers.MainFormController;
-import ua.diiaengine.utils.DBTools;
 import ua.diiaengine.utils.FilesTools;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Properties;
+import java.io.File;
 
 @Slf4j
 public class Launcher extends Application {
-    private static String configName;
+    private AppContext context;
 
-    public static void main(String[] args) throws Exception {
-        if (args.length == 0) throw new IllegalArgumentException("No config provided");
-        configName = args[0];
+    public static void main(String[] args) {
         launch(args);
     }
 
@@ -31,52 +27,34 @@ public class Launcher extends Application {
         java.util.logging.LogManager.getLogManager().reset();
         SLF4JBridgeHandler.install();
 
-        Properties config = getConfig();
-
-        AppContext context = AppContext.getInstance();
-        context.add(config);
-        context.init();
+        context = AppContext.getInstance();
+        FileBasedConfigurationBuilder<FileBasedConfiguration> config = getConfig();
+        context.setFileBasedConfigurationBuilder(config);
 
         FilesTools filesTools = new FilesTools();
         filesTools.setContext(context);
         filesTools.init();
-        context.add(filesTools);
-
-        DBTools DBTools = new DBTools();
-        DBTools.setContext(context);
-        DBTools.init();
-        context.add(DBTools);
+        context.setFilesTools(filesTools);
 
         LiquibaseRunner liquibaseRunner = new LiquibaseRunner();
         liquibaseRunner.setContext(context);
         liquibaseRunner.init();
-        context.add(liquibaseRunner);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            DBTools.stopWorkerPool();
-            DBTools.stopMasterPool();
-        }));
+        context.setLiquibaseRunner(liquibaseRunner);
 
         new MainFormController().setStage(stage);
 
-        FXMLLoader formLoader = new FXMLLoader(Launcher.class.getResource("main-form.fxml"));
+        FXMLLoader formLoader = new FXMLLoader(Launcher.class.getResource(Constants.MAIN_FORM));
         Scene scene = new Scene(formLoader.load());
 
         stage.setScene(scene);
-        stage.setTitle("Liquibase runner");
+        stage.setTitle(Constants.TITLE);
         stage.setResizable(false);
         stage.show();
     }
 
-    private Properties getConfig() throws IOException {
-        Properties config = new Properties();
-        List<String> lines = Files.readAllLines(Paths.get(configName));
-        for (String line : lines) {
-            if (line.isEmpty()) continue;
-            String key = line.substring(0, line.indexOf('='));
-            String value = line.substring(line.indexOf('=') + 1);
-            config.put(key, value);
-        }
-        return config;
+    private FileBasedConfigurationBuilder<FileBasedConfiguration> getConfig() {
+        File file = new File(Constants.CONFIG_PATH);
+        org.apache.commons.configuration2.builder.fluent.Parameters config = new org.apache.commons.configuration2.builder.fluent.Parameters();
+        return new FileBasedConfigurationBuilder<FileBasedConfiguration>(PropertiesConfiguration.class).configure(config.properties().setFile(file));
     }
 }

@@ -27,10 +27,9 @@ public class DBTools {
 
     public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
-        Properties config = context.get(Properties.class);
-        databaseName = Config.getStringProperty(config, "database.name");
-        username = Config.getStringProperty(config, "database.username");
-        password = Config.getStringProperty(config, "database.password");
+        databaseName = context.getConfigStringProperty("database.name");
+        username = context.getConfigStringProperty("database.username");
+        password = context.getConfigStringProperty("database.password");
 
         initMasterPool();
     }
