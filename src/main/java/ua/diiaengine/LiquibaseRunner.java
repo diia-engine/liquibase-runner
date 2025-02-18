@@ -5,9 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import ua.diiaengine.utils.FilesTools;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
-import java.util.Map;
 import java.util.StringJoiner;
 
 @Slf4j
@@ -22,7 +20,6 @@ public class LiquibaseRunner {
     private String liquibaseMainScript;
     private String preDeployScript;
     private String createDomainsScript;
-    private Map<String, File> fileList;
     private String dbName;
     private String userName;
     private String password;
@@ -32,23 +29,23 @@ public class LiquibaseRunner {
     public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
 
-        databaseDriver = context.getConfigStringProperty("database.driver");
-        databaseUrl = context.getConfigStringProperty("database.url");
+        databaseDriver = context.getConfigStringProperty(Constants.DATABASE_DRIVER);
+        databaseUrl = context.getConfigStringProperty(Constants.DATABASE_URL);
         liquibaseClasspath = new StringJoiner(":")
-                .add(context.getConfigStringProperty("lib.postgresql"))
-                .add(context.getConfigStringProperty("lib.liquibase_ddm_ext"))
-                .add(context.getConfigStringProperty("lib.jackson_databind"))
-                .add(context.getConfigStringProperty("lib.jackson_core"))
-                .add(context.getConfigStringProperty("lib.jackson_annotations"))
+                .add(context.getConfigStringProperty(Constants.LIB_POSTGRESQL))
+                .add(context.getConfigStringProperty(Constants.LIB_LIQUIBASE_DDM_EXT))
+                .add(context.getConfigStringProperty(Constants.LIB_JACKSON_DATABIND))
+                .add(context.getConfigStringProperty(Constants.LIB_JACKSON_CORE))
+                .add(context.getConfigStringProperty(Constants.LIB_JACKSON_ANNOTATIONS))
                 .toString();
-        liquibaseJar = context.getConfigStringProperty("lib.liquibase");
-        liquibaseMainScript = context.getConfigStringProperty("xml.liquibase_main_script");
-        preDeployScript = context.getConfigStringProperty("xml.pre_deploy_script");
-        createDomainsScript = context.getConfigStringProperty("xml.create_domains_script");
-        dbName = context.getConfigStringProperty("database.name");
-        userName = context.getConfigStringProperty("database.username");
-        password = context.getConfigStringProperty("database.password");
-        containerName = context.getConfigStringProperty("docker.container_name");
+        liquibaseJar = context.getConfigStringProperty(Constants.LIB_LIQUIBASE);
+        liquibaseMainScript = context.getConfigStringProperty(Constants.XML_LIQUIBASE_MAIN_SCRIPT);
+        preDeployScript = context.getConfigStringProperty(Constants.XML_PRE_DEPLOY_SCRIPT);
+        createDomainsScript = context.getConfigStringProperty(Constants.XML_CREATE_DOMAINS_SCRIPT);
+        dbName = context.getConfigStringProperty(Constants.DATABASE_NAME);
+        userName = context.getConfigStringProperty(Constants.DATABASE_USERNAME);
+        password = context.getConfigStringProperty(Constants.DATABASE_PASSWORD);
+        containerName = context.getConfigStringProperty(Constants.DOCKER_CONTAINER_NAME);
 
         filesTools = context.getFilesTools();
     }
@@ -123,47 +120,6 @@ public class LiquibaseRunner {
             logger.info("Exit code: {}", exitCode);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
-        }
-    }
-
-    private void runProcess(String[] commands) {
-        logger.info("Running commands: {}", String.join(" ", commands));
-        try {
-            Process process = Runtime.getRuntime().exec(commands);
-            Thread stdoutThread = new Thread(() -> {
-                try (BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = stdoutReader.readLine()) != null) {
-                        logger.info(line);
-                    }
-                } catch (Exception e) {
-                    logger.error("Error reading stdout", e);
-                }
-            });
-
-            Thread stderrThread = new Thread(() -> {
-                try (BufferedReader stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                    String line;
-                    while ((line = stderrReader.readLine()) != null) {
-                        logger.error(line);
-                    }
-                } catch (Exception e) {
-                    logger.error("Error reading stderr", e);
-                }
-            });
-
-            stdoutThread.start();
-            stderrThread.start();
-
-            int exitCode = process.waitFor();
-            stdoutThread.join();
-            stderrThread.join();
-
-            if (exitCode != 0) {
-                throw new RuntimeException("Error running Liquibase");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Error running process", e);
         }
     }
 }
