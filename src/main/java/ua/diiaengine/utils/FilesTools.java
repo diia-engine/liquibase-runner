@@ -5,7 +5,10 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import ua.diiaengine.AppContext;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -19,7 +22,7 @@ import java.util.stream.Stream;
 public class FilesTools {
     @Setter
     private AppContext context;
-    public static final String DATA_MODEL = "data-model";
+    public static final String DATA_MODEL = "dump_db/data-model";
     public static final String MAIN_LIQUIBASE = "main-liquibase.xml";
 
     private String xsdSchemaExt;
@@ -45,10 +48,18 @@ public class FilesTools {
         Path path = Paths.get(DATA_MODEL);
         try {
             Files.createDirectories(path);
-            logger.info("Directory has been found: {}", path.toAbsolutePath());
+            logger.info("Directory ready: {}", path.toAbsolutePath());
         } catch (IOException e) {
             throw new RuntimeException("Error creating directory: " + path.toAbsolutePath(), e);
         }
+    }
+
+    public String getExistsMainLiquibaseFilePath() {
+        Path path = Paths.get(DATA_MODEL, MAIN_LIQUIBASE);
+        if (Files.exists(path)) {
+            return path.toAbsolutePath().toString();
+        }
+        return null;
     }
 
     public void copyDirectoryRecursively() {
@@ -171,10 +182,8 @@ public class FilesTools {
     }
 
     public void copyDataLoad() {
-        String systemTempDir = System.getProperty("os.name").toLowerCase().contains("win") ?
-                System.getenv("TEMP") : "/tmp";
         Path sourceDir = Paths.get(DATA_MODEL, "data-load");
-        Path targetDir = Paths.get(systemTempDir, "data-load");
+        Path targetDir = Paths.get("/tmp", "data-load");
         try {
             if (Files.exists(sourceDir) && Files.isDirectory(sourceDir)) {
                 logger.info("Source dir found: {}", sourceDir.toAbsolutePath());

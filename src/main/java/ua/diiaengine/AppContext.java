@@ -1,20 +1,16 @@
 package ua.diiaengine;
 
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.SneakyThrows;
-import org.apache.commons.configuration2.Configuration;
-import org.apache.commons.configuration2.FileBasedConfiguration;
-import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
 import ua.diiaengine.utils.FilesTools;
 
 import java.nio.file.Path;
+import java.util.Properties;
 
 @Getter
 @Setter
 public class AppContext {
-    private FileBasedConfigurationBuilder<FileBasedConfiguration> fileBasedConfigurationBuilder;
+    private Properties config;
     private Path configPath;
     private FilesTools filesTools;
     private LiquibaseRunner liquibaseRunner;
@@ -25,16 +21,10 @@ public class AppContext {
     private AppContext() {}
 
     public String getConfigStringProperty(String prop) {
-        checkConfigContainsProperty(prop);
-        return getConfig().getString(prop);
-    }
-
-    private void checkConfigContainsProperty(String prop) {
-        if (!getConfig().containsKey(prop)) throw new IllegalArgumentException("Property " + prop + " not found in config");
-    }
-
-    @SneakyThrows
-    public Configuration getConfig() {
-        return fileBasedConfigurationBuilder.getConfiguration();
+        String property = config.getProperty(prop);
+        if (property == null) {
+            throw new IllegalArgumentException("Property " + prop + " not found in config");
+        }
+        return property;
     }
 }

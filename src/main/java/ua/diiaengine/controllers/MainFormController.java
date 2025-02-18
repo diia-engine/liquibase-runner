@@ -11,16 +11,12 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.configuration2.Configuration;
-import org.apache.commons.configuration2.FileBasedConfiguration;
-import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
-import org.apache.commons.configuration2.ex.ConfigurationException;
 import ua.diiaengine.AppContext;
 import ua.diiaengine.LiquibaseRunner;
 import ua.diiaengine.utils.FilesTools;
 import ua.diiaengine.utils.TextAreaAppender;
 
-import java.io.*;
+import java.io.File;
 import java.net.URL;
 import java.util.ResourceBundle;
 
@@ -32,11 +28,7 @@ public class MainFormController implements Initializable {
     private FilesTools filesTools;
 
     @FXML
-    private TextField txtUsername;
-    @FXML
-    private TextField txtPassword;
-    @FXML
-    private Button saveCredentialsButton;
+    private TextField mainLiquibaseInfo;
     @FXML
     private Button chooseFileButton;
     @FXML
@@ -56,48 +48,18 @@ public class MainFormController implements Initializable {
         logArea.setEditable(false);
         logArea.setFocusTraversable(false);
         chooseFileButton.setOnAction(e -> onChooseFile());
+        redrawMainLiquibaseInfo();
         processButton.setOnAction(e -> Platform.runLater(this::onProcess));
         clearButton.setOnAction(e -> onClear());
+    }
 
-        String username = context.getConfigStringProperty("database.username");
-        txtUsername.setText(username);
-
-        String password = context.getConfigStringProperty("database.password");
-        txtPassword.setText(password);
-
-        if (txtUsername.getText().isEmpty() || txtPassword.getText().isEmpty()) {
-            disableButtons();
+    private void redrawMainLiquibaseInfo() {
+        String mainLiquibaseFilePath = filesTools.getExistsMainLiquibaseFilePath();
+        if (mainLiquibaseFilePath == null) {
+            processButton.setDisable(true);
+        } else {
+            mainLiquibaseInfo.setText(mainLiquibaseFilePath);
         }
-
-        txtUsername.setOnKeyTyped(keyEvent -> {
-            if (txtUsername.getText().isEmpty()) {
-                disableButtons();
-            } else {
-                enableButtons();
-            }
-        });
-
-        txtPassword.setOnKeyTyped(keyEvent -> {
-            if (txtPassword.getText().isEmpty()) {
-                disableButtons();
-            } else {
-                enableButtons();
-            }
-        });
-
-        saveCredentialsButton.setOnAction(event -> {
-            Configuration config = context.getConfig();
-            config.setProperty("database.username", txtUsername.getText());
-            config.setProperty("database.password", txtPassword.getText());
-
-            FileBasedConfigurationBuilder<FileBasedConfiguration> fileBasedConfigurationBuilder = context.getFileBasedConfigurationBuilder();
-            try {
-                fileBasedConfigurationBuilder.save();
-                enableButtons();
-            } catch (ConfigurationException e) {
-                logger.error(e.getMessage(), e);
-            }
-        });
     }
 
     private void onChooseFile() {
@@ -112,6 +74,7 @@ public class MainFormController implements Initializable {
             processButton.setDisable(false);
             filesTools.setTargetMainLiquibase(mainLiquibase);
             filesTools.copyDirectoryRecursively();
+            redrawMainLiquibaseInfo();
             logger.info(mainLiquibase.getAbsolutePath());
         }
     }
@@ -120,7 +83,9 @@ public class MainFormController implements Initializable {
         disableButtons();
         LiquibaseRunner liquibaseRunner = context.getLiquibaseRunner();
 
-        liquibaseRunner.process(this::enableButtons);
+        liquibaseRunner
+                .setFinalizer(this::enableButtons)
+                .process();
         LiquibaseTask task = new LiquibaseTask(100);
         progressBar.setVisible(true);
         progressBar.progressProperty().bind(task.progressProperty());
@@ -130,16 +95,19 @@ public class MainFormController implements Initializable {
         logArea.clear();
         processButton.setDisable(true);
         filesTools.deleteAllFilesInDirectory();
+        mainLiquibaseInfo.setText("");
     }
 
     private void disableButtons() {
         chooseFileButton.setDisable(true);
+        processButton.setDisable(true);
         clearButton.setDisable(true);
         progressBar.setVisible(true);
     }
 
     private void enableButtons() {
         chooseFileButton.setDisable(false);
+        processButton.setDisable(false);
         clearButton.setDisable(false);
         progressBar.setVisible(false);
     }

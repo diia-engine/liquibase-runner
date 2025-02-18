@@ -1,0 +1,21 @@
+name: psql14
+services:  
+  psql14:
+    #image: postgres:14.3
+    build: .
+    container_name: psql14
+    restart: always
+    ports:
+      - "5454:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./dump_db:/data/dump_db
+      - postgres_data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+volumes:
+  postgres_data:
+    driver: local
+   

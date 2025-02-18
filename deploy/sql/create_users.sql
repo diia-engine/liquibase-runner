@@ -12,4 +12,10 @@ DO $$
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'registry_template_owner_role') THEN
             CREATE ROLE registry_template_owner_role WITH LOGIN PASSWORD 'test4321';
         END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'admin_role') THEN
+            CREATE ROLE admin_role WITH LOGIN PASSWORD 'test4321';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'geoserver_role') THEN
+            CREATE ROLE geoserver_role WITH LOGIN PASSWORD 'test4321';
+        END IF;
     END $$;

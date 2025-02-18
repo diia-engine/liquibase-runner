@@ -7,8 +7,6 @@ import ua.diiaengine.utils.FilesTools;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.StringJoiner;
 
@@ -17,13 +15,19 @@ public class LiquibaseRunner {
     @Setter
     private AppContext context;
     private FilesTools filesTools;
-    public String databaseDriver;
-    public String databaseUrl;
-    public String liquibaseClasspath;
-    public String liquibaseJar;
-    public String liquibaseMainScript;
-    public String preDeployScript;
+    private String databaseDriver;
+    private String databaseUrl;
+    private String liquibaseClasspath;
+    private String liquibaseJar;
+    private String liquibaseMainScript;
+    private String preDeployScript;
+    private String createDomainsScript;
     private Map<String, File> fileList;
+    private String dbName;
+    private String userName;
+    private String password;
+    private String containerName;
+    private Runnable finalizer;
 
     public void init() {
         if (context == null) throw new IllegalArgumentException("Context is not provided");
@@ -40,80 +44,90 @@ public class LiquibaseRunner {
         liquibaseJar = context.getConfigStringProperty("lib.liquibase");
         liquibaseMainScript = context.getConfigStringProperty("xml.liquibase_main_script");
         preDeployScript = context.getConfigStringProperty("xml.pre_deploy_script");
-
-        File sqlDir = new File(context.getConfigStringProperty("sql_dir"));
-        if (!sqlDir.exists()) throw new IllegalArgumentException("'sql' directory does not exist");
+        createDomainsScript = context.getConfigStringProperty("xml.create_domains_script");
+        dbName = context.getConfigStringProperty("database.name");
+        userName = context.getConfigStringProperty("database.username");
+        password = context.getConfigStringProperty("database.password");
+        containerName = context.getConfigStringProperty("docker.container_name");
 
         filesTools = context.getFilesTools();
-        fileList = new HashMap<>();
-        filesTools.readFilesRecursively(sqlDir, fileList);
     }
 
-    public void process(Runnable runnable) {
+    public LiquibaseRunner setFinalizer(Runnable finalizer) {
+        this.finalizer = finalizer;
+        return this;
+    }
+
+    public void process() {
         Thread thread = new Thread(() -> {
-            String dbName = context.getConfigStringProperty("database.name");
-            String userName = context.getConfigStringProperty("database.username");
-            runProcess(new String[]{
-                    "psql", "-U", userName, "-d", "postgres", "-f", fileList.get("create_users.sql").getAbsolutePath()
-            });
-            runProcess(new String[]{
-                    "psql", "-U", userName, "-d", "postgres", "-f", fileList.get("registry_template.sql").getAbsolutePath()
-            });
-
             filesTools.copyDataLoad();
-
-            runProcess(new String[]{"dropdb", "-f", dbName, "-U", userName});
-            runProcess(new String[]{"createdb", "-T", "registry_template", dbName, "-U", userName});
-
             filesTools.updateSchemaLocationInXMLFiles();
+            execCommand("createdb -T registry_template " + dbName + " -U " + userName);
+            execCommand("cp -r /data/dump_db/data-model/data-load/ /tmp/data-load/");
+
             logger.info("Starting Liquibase ...");
             try {
                 runLiquibase();
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
             } finally {
-                runnable.run();
+                if (finalizer != null) finalizer.run();
             }
         });
         thread.start();
     }
 
     public void runLiquibase() {
-        String dbName = context.getConfigStringProperty("database.name");
-        String username = context.getConfigStringProperty("database.username");
-        String[] commands = new String[]{
-                "psql", "-U", username, "-d", dbName, "-c", "alter database " + dbName + " set search_path to '" + username + "', registry, public;"
-        };
-        runProcess(commands);
+        execCommand("psql -c 'alter database " + dbName + " set search_path to \"" + userName + "\", registry, public;'");
         logger.info("Run pre-deploy script");
         runUpdateLiquibase(preDeployScript, "all,pub");
+        runUpdateLiquibase(createDomainsScript, "all,pub");
         logger.info("Run main-deploy script");
         runUpdateLiquibase(liquibaseMainScript, "all,pub,code-review");
     }
 
     private void runUpdateLiquibase(String changeLogFile, String contexts) {
-        String dbName = context.getConfigStringProperty("database.name");
-        runProcess(new String[]{
-                "java",
-                "-jar",
-                liquibaseJar,
-                "--liquibaseSchemaName=public",
-                "--classpath=" + liquibaseClasspath,
-                "--driver=" + databaseDriver,
-                "--changeLogFile=" + changeLogFile,
-                "--url=" + databaseUrl + dbName,
-                "--username=bamboo",
-                "--password=bamboo",
-                "--contexts=" + contexts,
-                "--databaseChangeLogTableName=ddm_db_changelog",
-                "--databaseChangeLogLockTableName=ddm_db_changelog_lock",
-                "--logLevel=INFO",
-                "update",
-        });
+        execCommand(new StringJoiner(" ")
+                .add("java")
+                .add("-jar")
+                .add(liquibaseJar)
+                .add("--liquibaseSchemaName=public")
+                .add("--classpath=" + liquibaseClasspath + ":/data/dump_db/")
+                .add("--driver=" + databaseDriver)
+                .add("--changeLogFile=" + changeLogFile)
+                .add("--url=" + databaseUrl + "/" + dbName)
+                .add("--username=" + userName)
+                .add("--password=" + password)
+                .add("--contexts=" + contexts)
+                .add("--databaseChangeLogTableName=ddm_db_changelog")
+                .add("--databaseChangeLogLockTableName=ddm_db_changelog_lock")
+                .add("--logLevel=INFO")
+                .add("update")
+                .toString()
+        );
+    }
+
+    private void execCommand(String command) {
+        logger.info("Executing command: {}{}", "docker exec " + containerName + " bash -c ", command);
+        try {
+            ProcessBuilder builder = new ProcessBuilder("docker", "exec", containerName, "bash", "-c", command);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    logger.info(line);
+                }
+            }
+            int exitCode = process.waitFor();
+            logger.info("Exit code: {}", exitCode);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
     }
 
     private void runProcess(String[] commands) {
-        logger.info("Running commands: {}", Arrays.toString(commands));
+        logger.info("Running commands: {}", String.join(" ", commands));
         try {
             Process process = Runtime.getRuntime().exec(commands);
             Thread stdoutThread = new Thread(() -> {

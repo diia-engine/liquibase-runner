@@ -5,14 +5,11 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.configuration2.FileBasedConfiguration;
-import org.apache.commons.configuration2.PropertiesConfiguration;
-import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 import ua.diiaengine.controllers.MainFormController;
 import ua.diiaengine.utils.FilesTools;
 
-import java.io.File;
+import java.util.Properties;
 
 @Slf4j
 public class Launcher extends Application {
@@ -28,8 +25,12 @@ public class Launcher extends Application {
         SLF4JBridgeHandler.install();
 
         context = AppContext.getInstance();
-        FileBasedConfigurationBuilder<FileBasedConfiguration> config = getConfig();
-        context.setFileBasedConfigurationBuilder(config);
+        Properties config = new Properties();
+        config.load(getClass().getResourceAsStream("/config.properties"));
+        if (config.stringPropertyNames().isEmpty()) {
+            throw new RuntimeException("Unable to load configuration file");
+        }
+        context.setConfig(config);
 
         FilesTools filesTools = new FilesTools();
         filesTools.setContext(context);
@@ -43,18 +44,13 @@ public class Launcher extends Application {
 
         new MainFormController().setStage(stage);
 
-        FXMLLoader formLoader = new FXMLLoader(Launcher.class.getResource(Constants.MAIN_FORM));
+        FXMLLoader formLoader = new FXMLLoader();
+        formLoader.setLocation(getClass().getResource(Constants.MAIN_FORM));
         Scene scene = new Scene(formLoader.load());
 
         stage.setScene(scene);
         stage.setTitle(Constants.TITLE);
         stage.setResizable(false);
         stage.show();
-    }
-
-    private FileBasedConfigurationBuilder<FileBasedConfiguration> getConfig() {
-        File file = new File(Constants.CONFIG_PATH);
-        org.apache.commons.configuration2.builder.fluent.Parameters config = new org.apache.commons.configuration2.builder.fluent.Parameters();
-        return new FileBasedConfigurationBuilder<FileBasedConfiguration>(PropertiesConfiguration.class).configure(config.properties().setFile(file));
     }
 }
