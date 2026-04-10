@@ -26,6 +26,13 @@ A Podman-based local setup for running Liquibase migrations.
   ```bash
   ./gradlew liquibaseUpdate
 
+### 4. Accessing the Database
+Once the environment is running, you can connect to the database using any standard client (e.g., pgAdmin, DBeaver, DataGrip) with the following credentials:
+- **Host**: **`localhost`**
+- **Port**: **`5454`**
+- **Username**: **`postgres`**
+- **Password**: **`postgres`**
+
 > ⚠️ **NOTE on Volumes and Projects:**
 >
 > The **`PROJECT_PREFIX`** variable in the **`.env`** file is used to quickly switch between Podman volumes, allowing you to isolate data across different projects.
