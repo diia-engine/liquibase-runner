@@ -19,12 +19,12 @@ A Podman-based local setup for running Liquibase migrations.
 ### 2. Starting the Environment
 - Start the required containers using:
     ```bash
-    `podman compose up`
+    podman compose up
 
 ### 3. Executing Liquibase Migrations
 - Apply the database changes by running: 
   ```bash
-  `./gradlew liquibaseUpdate`
+  ./gradlew liquibaseUpdate
 
 > ⚠️ **NOTE on Volumes and Projects:**
 >
