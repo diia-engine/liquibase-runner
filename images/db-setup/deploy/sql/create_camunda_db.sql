@@ -1,0 +1,6 @@
+SET password_encryption = 'md5';
+CREATE USER camunda WITH ENCRYPTED PASSWORD 'camunda';
+CREATE USER bpms WITH ENCRYPTED PASSWORD 'password';
+CREATE DATABASE camunda OWNER camunda;
+GRANT ALL PRIVILEGES ON DATABASE camunda TO camunda;
+GRANT ALL PRIVILEGES ON DATABASE camunda TO bpms;

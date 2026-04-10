@@ -1,0 +1,47 @@
+ext.toCamelCase = { String value ->
+    value
+            .split(/[^a-zA-Z0-9]+/)
+            .findAll { it }
+            .collect { it.capitalize() }
+            .join('')
+}
+
+ext.collectFiles = { String sourceDir,
+                     String targetDir,
+                     List<String> extensions = [] ->
+
+    def tree
+
+    if (extensions && !extensions.isEmpty()) {
+        tree = fileTree(sourceDir) {
+            extensions.each { ext ->
+                include "**/*.${ext}"
+            }
+        }
+    } else {
+        tree = fileTree(sourceDir)
+    }
+
+    def baseDir = file(sourceDir).absolutePath
+
+    tree.files
+            .findAll { it.isFile() }
+            .collect { f ->
+                def relativePath = f.absolutePath - (baseDir + File.separator)
+                "${targetDir}/${relativePath}".replace('\\', '/')
+            }
+            .join(',')
+}
+
+ext.loadEnv = { ->
+    def file = rootProject.file(".env")
+    if (!file.exists()) return [:]
+
+    file.readLines()
+            .collect { it.trim() }
+            .findAll { it && !['#', ';'].any { c -> it.startsWith(c) } }
+            .collectEntries { line ->
+                def (k, v) = line.split("=", 2)
+                [(k.trim()): v.trim()]
+            }
+}

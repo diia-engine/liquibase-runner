@@ -1,21 +1,50 @@
-name: psql14
-services:  
+name: liquibase-4.5.0
+services:
+  nginx-artifactory:
+    image: nginx-artifactory:0.1.0
+    container_name: nginx-artifactory
+    hostname: artifactory.control-plane-nexus
+    restart: always
+    networks:
+      registry-net:
+        ipv4_address: 10.99.0.5
+    ports:
+      - "8080:80"
+
   psql14:
-    #image: postgres:14.3
-    build: .
+    image: db-setup:0.1.0
     container_name: psql14
     restart: always
+    networks:
+      - registry-net
+    depends_on:
+      - nginx-artifactory
     ports:
       - "5454:5432"
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    extra_hosts:
+      - "artifactory.control-plane-nexus:10.99.0.5"
     volumes:
-      - ./dump_db:/data/dump_db
+      - ${REGISTRY_DIR}/data-model:/data-model
+      - ${REGISTRY_DIR}/data-model/data-load:/tmp/data-load/
       - postgres_data:/var/lib/postgresql/data
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    command:
+      - "-c"
+      - "config_file=/etc/postgresql/postgresql.conf"
+      - "-c"
+      - "hba_file=/etc/postgresql/pg_hba.conf"
+
 volumes:
   postgres_data:
-    driver: local
-   
+    name: ${PROJECT_PREFIX}_postgres_data
+
+networks:
+  registry-net:
+    name: registry-shared-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.99.0.0/16

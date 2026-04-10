@@ -1,0 +1,197 @@
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+plugins {
+    id 'base'
+}
+
+apply from: 'gradle/utils.gradle'
+
+group = 'ua.diia.engine'
+version = '0.1.0'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+def env = loadEnv()
+ext {
+    containerEngine = 'podman'
+    registryDir = env["REGISTRY_DIR"]
+    logLevel = env["LOG_LEVEL"] != null ? env["LOG_LEVEL"] : "INFO"
+}
+
+println("logLevel=${logLevel}, registryDir=${registryDir}")
+
+static boolean commandExists(String cmd) {
+    try {
+        def process = new ProcessBuilder(cmd, '--version')
+                .redirectErrorStream(true)
+                .start()
+        return process.waitFor() == 0
+    } catch (Exception e) {
+        e // suppress compile warning
+        return false
+    }
+}
+
+if (commandExists(containerEngine)) {
+    println "Using container engine: ${containerEngine}"
+} else {
+    throw new GradleException("ERROR: Container engine ${containerEngine} is not available")
+}
+
+def dockerRoot = file('images')
+
+if (!dockerRoot.exists() || !dockerRoot.isDirectory()) {
+    throw new GradleException("No ${dockerRoot}/ directory found, skipping image tasks")
+}
+
+[
+        'nginx-artifactory',
+        'db-setup'
+].each { imageName ->
+    def imageDir = new File(dockerRoot, imageName)
+
+    if (!imageDir.exists() || !imageDir.isDirectory()) {
+        throw new GradleException("Directory ${imageDir} not found")
+    }
+
+    def dockerfile = new File(imageDir, 'Dockerfile')
+    if (!dockerfile.exists()) {
+        throw new GradleException("Dockerfile not found in ${imageDir}")
+    }
+
+    def camelName = toCamelCase(imageName)
+    def taskName = "build${camelName}Image"
+
+    tasks.register(taskName, Exec) {
+        group = 'container'
+        description = "Build container image '${imageName}' using ${containerEngine}"
+
+        commandLine containerEngine,
+                'build',
+                '--force-rm',
+                '-t', "${imageName}:${project.version}",
+                imageDir.absolutePath
+
+        finalizedBy cleanIntermediateImages
+    }
+}
+
+def cleanIntermediateImages = tasks.register("cleanIntermediateImages", Exec) {
+    group = 'container'
+    description = "Removes all intermediate images with build-stage=intermediate"
+
+    ignoreExitValue = true
+    commandLine containerEngine, 'image', 'prune', '-f',
+            '--filter', 'label=build-stage=intermediate'
+}
+
+tasks.register('buildImages') {
+    group = 'container'
+    description = 'Build all container images'
+
+    gradle.startParameter.continueOnFailure = true
+
+    dependsOn tasks.matching {
+        it.name.startsWith('build') && it.name.endsWith('Image')
+    }
+}
+
+tasks.register('liquibaseUpdate', Exec) {
+    group = 'database'
+    description = 'Run Liquibase migrations (v4.5.0)'
+
+    def containerName = 'psql14'
+    def templateDbName = 'registry_template'
+    def dbName = 'registry'
+    def dbUser = 'registry_owner_role'
+    def dbPassword = 'test4321'
+    def searchPath = "${dbUser},registry,public"
+    def liquibaseDir = '/opt/liquibase/lib'
+    def javaExec = '/usr/lib/jvm/java-17-openjdk-amd64/bin/java'
+
+    StringJoiner stringJoiner = new StringJoiner(':')
+    def liquibaseClassPath = stringJoiner
+            .add("/data")
+            .add("$liquibaseDir/liquibase.jar")
+            .add("$liquibaseDir/postgresql-42.3.3.jar")
+            .add("$liquibaseDir/liquibase-ddm-ext.jar")
+            .add("$liquibaseDir/jackson-databind.jar")
+            .add("$liquibaseDir/jackson-core.jar")
+            .add("$liquibaseDir/jackson-annotations.jar")
+            .toString()
+
+    def changelogs = [
+            [file: 'changelog-master-pre-deploy.xml', contexts: 'all,pub'],
+            [file: 'createDomains.xml', contexts: 'all,pub'],
+            [file: 'data-model/main-liquibase.xml', contexts: 'all,pub,code-review']
+    ]
+
+    doFirst {
+        ext.startTime = System.currentTimeMillis()
+    }
+
+    def bashScript = """
+        set -e
+
+        until pg_isready -h localhost -p 5432; do sleep 2; done
+
+        if ! PGPASSWORD='postgres' psql -h localhost -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${dbName}'" | grep -qw 1; then
+            echo "Creating database ${dbName}"
+            PGPASSWORD='postgres' createdb -h localhost -T ${templateDbName} ${dbName} -U postgres -O ${dbUser}
+        else
+            echo "Database ${dbName} already exists, skipping creation."
+        fi
+
+        PGPASSWORD='postgres' psql -h localhost -U postgres -d ${dbName} \
+            -c "ALTER DATABASE ${dbName} SET search_path TO ${searchPath};"
+
+        echo "=== ТЕСТУЄМО МЕРЕЖУ ДО NGINX ==="
+        wget -S --spider --timeout=3 http://artifactory.control-plane-nexus/nexus/repository/extensions/com/epam/digital/data/platform/dbchangelog/4.5/dbchangelog-4.5.xsd || echo "WGET FAILED"
+        echo "================================="
+        
+        export LIQUIBASE_SECURE_PARSING=false
+
+        ${changelogs.collect { ch ->
+                """
+            ${javaExec} -jar ${liquibaseDir}/liquibase.jar \
+                --driver=org.postgresql.Driver \
+                --classpath=${liquibaseClassPath} \
+                --url="jdbc:postgresql://localhost:5432/${dbName}" \
+                --username=${dbUser} \
+                --password=${dbPassword} \
+                --changeLogFile=${ch.file} \
+                --databaseChangeLogTableName=ddm_db_changelog \
+                --databaseChangeLogLockTableName=ddm_db_changelog_lock \
+                --liquibaseSchemaName=public \
+                --defaultSchemaName=registry \
+                --contexts=${ch.contexts} \
+                --logLevel=${logLevel} \
+                update \
+                2>&1 | grep --line-buffered -v -E '^##|INFO: Cannot load service:'
+            """
+            }.join('\n')}
+
+        """.replaceAll('\r\n', '\n')
+    commandLine 'podman', 'exec', '-i', containerName, 'bash'
+    standardInput = new ByteArrayInputStream(bashScript.getBytes("UTF-8"))
+    doLast {
+        def start = ext.startTime
+        def finish = System.currentTimeMillis()
+
+        def durationSec = ((finish - start) / 1000) as int
+
+        println """
+========================================
+Liquibase migrations finished
+Start time was:     ${LocalDateTime.ofInstant(Instant.ofEpochMilli(start), ZoneId.systemDefault())}
+End time:           ${LocalDateTime.ofInstant(Instant.ofEpochMilli(finish), ZoneId.systemDefault())}
+Duration:           ${(durationSec / 60) as Integer} min ${durationSec % 60} sec
+========================================
+        """
+    }
+}
