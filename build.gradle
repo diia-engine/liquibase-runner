@@ -4,6 +4,13 @@ import java.time.ZoneId
 
 plugins {
     id 'base'
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 apply from: 'gradle/utils.gradle'
@@ -157,7 +164,7 @@ tasks.register('liquibaseUpdate', Exec) {
         export LIQUIBASE_SECURE_PARSING=false
 
         ${changelogs.collect { ch ->
-                """
+        """
             ${javaExec} -jar ${liquibaseDir}/liquibase.jar \
                 --driver=org.postgresql.Driver \
                 --classpath=${liquibaseClassPath} \
@@ -174,7 +181,7 @@ tasks.register('liquibaseUpdate', Exec) {
                 update \
                 2>&1 | grep --line-buffered -v -E '^##|INFO: Cannot load service:'
             """
-            }.join('\n')}
+    }.join('\n')}
 
         """.replaceAll('\r\n', '\n')
     commandLine 'podman', 'exec', '-i', containerName, 'bash'
